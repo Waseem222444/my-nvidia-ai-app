@@ -98,13 +98,19 @@ if prompt := st.chat_input("Describe the scene or image you want to generate..."
                 full_prompt = f"{prompt}, {style_preset} style, highly detailed, master piece"
                 encoded_prompt = urllib.parse.quote(full_prompt)
                 
-                # Free Endpoint
-                image_url = f"https://pollinations.ai/p/{encoded_prompt}?width={width}&height={height}&seed=42&model=flux"
+                # Construct URL based on whether reference image is uploaded
+                image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&nologo=true&seed=42"
                 
-                response = requests.get(image_url, timeout=60)
+                headers = {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                }
+                
+                # Fetch image with redirect handling and custom headers
+                response = requests.get(image_url, headers=headers, allow_redirects=True, timeout=60)
                 
                 if response.status_code == 200:
-                    generated_img = Image.open(io.BytesIO(response.content))
+                    image_bytes = io.BytesIO(response.content)
+                    generated_img = Image.open(image_bytes)
                     
                     st.image(generated_img, caption=f"Generated Scene ({aspect_ratio_choice})", use_container_width=True)
                     st.markdown("**📋 Copy Prompt:**")
@@ -118,7 +124,7 @@ if prompt := st.chat_input("Describe the scene or image you want to generate..."
                         "full_prompt": full_prompt
                     })
                 else:
-                    err_msg = f"Generation Error ({response.status_code})"
+                    err_msg = f"Generation Error ({response.status_code}): Could not retrieve image."
                     st.error(err_msg)
                     st.session_state.chat_history.append({"role": "assistant", "type": "text", "content": err_msg})
 
