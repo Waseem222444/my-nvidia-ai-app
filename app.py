@@ -89,23 +89,22 @@ if prompt := st.chat_input("Describe the scene or image you want to generate..."
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        with st.spinner("✨ Generating scene with AI..."):
+        with st.spinner("✨ Generating scene with free AI model..."):
             try:
                 full_prompt = f"{prompt}, {style_preset} style, highly detailed, master piece"
                 client = InferenceClient(api_key=hf_token.strip())
                 
+                # Free tier compatible models
                 if ref_image:
-                    # SD 2.1 handles serverless image-to-image conversion reliably
                     img = client.image_to_image(
                         image=ref_image,
                         prompt=full_prompt,
-                        model="stabilityai/stable-diffusion-2-1"
+                        model="runwayml/stable-diffusion-v1-5"
                     )
                 else:
-                    # FLUX.1-dev for standard text-to-image
                     img = client.text_to_image(
                         prompt=full_prompt,
-                        model="black-forest-labs/FLUX.1-dev"
+                        model="runwayml/stable-diffusion-v1-5"
                     )
                 
                 st.image(img, caption=f"Generated Scene ({aspect_ratio_choice})", use_container_width=True)
