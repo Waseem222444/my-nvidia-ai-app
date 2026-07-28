@@ -12,7 +12,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for modern Gemini-style UI
+# Custom CSS for modern dark theme
 st.markdown("""
 <style>
     /* Dark theme background */
@@ -37,34 +37,8 @@ st.markdown("""
         font-size: 1rem;
         margin-bottom: 2rem;
     }
-
-    /* Card Containers */
-    .css-card {
-        background-color: #1E293B;
-        border-radius: 12px;
-        padding: 1.5rem;
-        border: 1px solid #334155;
-        margin-bottom: 1rem;
-    }
-
-    /* Custom Button Style */
-    .stButton>button {
-        background: linear-gradient(135deg, #6366F1 0%, #A855F7 100%);
-        color: white;
-        border: none;
-        border-radius: 10px;
-        padding: 0.6rem 1.2rem;
-        font-weight: 600;
-        transition: all 0.3s ease;
-        width: 100%;
-    }
-    
-    .stButton>button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(168, 85, 247, 0.4);
-    }
 </style>
-""", unsafe_allow_shortcut_html=True)
+""", unsafe_allow_html=True)
 
 # API Key Validation
 nvidia_api_key = st.secrets.get("NVIDIA_API_KEY")
@@ -73,8 +47,8 @@ if not nvidia_api_key:
     st.stop()
 
 # Header
-st.markdown('<div class="main-header">✨ AI Vision & Scene Studio</div>', unsafe_allow_shortcut_html=True)
-st.markdown('<div class="sub-header">Generate cinematic Ghibli scenes, upload reference images, and create AI visuals.</div>', unsafe_allow_shortcut_html=True)
+st.markdown('<div class="main-header">✨ AI Vision & Scene Studio</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-header">Generate cinematic scenes, upload reference images, and create AI visuals.</div>', unsafe_allow_html=True)
 
 # Sidebar Controls
 with st.sidebar:
@@ -101,7 +75,7 @@ with st.sidebar:
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
-# Display Chat History (Gemini Style)
+# Display Chat History
 for message in st.session_state.chat_history:
     with st.chat_message(message["role"]):
         if message.get("type") == "text":
@@ -109,7 +83,7 @@ for message in st.session_state.chat_history:
         elif message.get("type") == "image":
             st.image(message["content"], caption=message.get("caption", ""), use_container_width=True)
 
-# Chat Input Field at the bottom
+# Chat Input Field
 if prompt := st.chat_input("Describe the scene or image you want to generate..."):
     # Add user message to chat history
     st.session_state.chat_history.append({"role": "user", "type": "text", "content": prompt})
