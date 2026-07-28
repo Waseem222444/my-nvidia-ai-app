@@ -1,7 +1,7 @@
 import streamlit as st
-from huggingface_hub import InferenceClient
+import requests
 from PIL import Image
-import traceback
+import io
 
 # Page Configuration
 st.set_page_config(
@@ -93,43 +93,52 @@ if prompt := st.chat_input("Describe the scene or image you want to generate..."
         with st.spinner("✨ Generating scene with AI..."):
             try:
                 full_prompt = f"{prompt}, {style_preset} style, highly detailed, master piece"
-                client = InferenceClient(api_key=hf_token.strip())
+                headers = {"Authorization": f"Bearer {hf_token.strip()}"}
                 
-                img = None
+                # Public Stable Diffusion Endpoint
+                API_URL = "https://api-inference.huggingface.co/models/runwayml/stable-diffusion-v1-5"
                 
                 if ref_image:
-                    try:
-                        # Attempt image-to-image conversion
-                        img = client.image_to_image(
-                            image=ref_image,
-                            prompt=full_prompt,
-                            model="runwayml/stable-diffusion-v1-5"
-                        )
-                    except Exception as img_err:
-                        st.warning(f"⚠️ Reference image processing failed ({str(img_err)}). Generating from prompt only...")
-                        # Fallback to text-to-image if image-to-image endpoint is unavailable
-                        img = client.text_to_image(
-                            prompt=full_prompt,
-                            model="runwayml/stable-diffusion-v1-5"
-                        )
-                else:
-                    img = client.text_to_image(
-                        prompt=full_prompt,
-                        model="runwayml/stable-diffusion-v1-5"
+                    # Convert uploaded reference PIL Image to bytes
+                    img_byte_arr = io.BytesIO()
+                    ref_image.save(img_byte_arr, format='JPEG')
+                    img_bytes = img_byte_arr.getvalue()
+                    
+                    # Call Image-to-Image API with binary image payload & prompt parameters
+                    response = requests.post(
+                        API_URL, 
+                        headers=headers, 
+                        data=img_bytes, 
+                        params={"inputs": full_prompt},
+                        timeout=60
                     )
-                
-                if img:
-                    st.image(img, caption=f"Generated Scene ({aspect_ratio_choice})", use_container_width=True)
+                else:
+                    # Standard Text-to-Image call
+                    response = requests.post(
+                        API_URL, 
+                        headers=headers, 
+                        json={"inputs": full_prompt},
+                        timeout=60
+                    )
+
+                if response.status_code == 200:
+                    generated_img = Image.open(io.BytesIO(response.content))
+                    
+                    st.image(generated_img, caption=f"Generated Scene ({aspect_ratio_choice})", use_container_width=True)
                     st.markdown("**📋 Copy Prompt:**")
                     st.code(full_prompt, language="text")
                     
                     st.session_state.chat_history.append({
                         "role": "assistant",
                         "type": "image",
-                        "content": img,
+                        "content": generated_img,
                         "caption": f"Generated ({style_preset}): {prompt}",
                         "full_prompt": full_prompt
                     })
+                else:
+                    err_msg = f"API Error ({response.status_code}): {response.text}"
+                    st.error(err_msg)
+                    st.session_state.chat_history.append({"role": "assistant", "type": "text", "content": err_msg})
 
             except Exception as e:
                 err_msg = str(e) if str(e) else repr(e)
