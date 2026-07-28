@@ -62,8 +62,10 @@ with st.sidebar:
     st.markdown("### 🖼️ Reference Image")
     uploaded_file = st.file_uploader("Upload reference photo (Optional)", type=["png", "jpg", "jpeg"])
     
+    ref_image = None
     if uploaded_file:
-        st.image(uploaded_file, caption="Uploaded Photo", use_container_width=True)
+        ref_image = Image.open(uploaded_file)
+        st.image(ref_image, caption="Uploaded Reference Photo", use_container_width=True)
 
 # Initialize Session Chat History
 if "chat_history" not in st.session_state:
@@ -94,11 +96,20 @@ if prompt := st.chat_input("Describe the scene or image you want to generate..."
                 # Official Hugging Face Client
                 client = InferenceClient(api_key=hf_token.strip())
                 
-                # Text-to-Image Generation
-                img = client.text_to_image(
-                    prompt=full_prompt,
-                    model="black-forest-labs/FLUX.1-dev"
-                )
+                # Check if user provided a reference image
+                if ref_image:
+                    # Image-to-Image Generation using reference image
+                    img = client.image_to_image(
+                        image=ref_image,
+                        prompt=full_prompt,
+                        model="black-forest-labs/FLUX.1-dev"
+                    )
+                else:
+                    # Text-to-Image Generation
+                    img = client.text_to_image(
+                        prompt=full_prompt,
+                        model="black-forest-labs/FLUX.1-dev"
+                    )
                 
                 st.image(img, caption=f"Generated Scene ({aspect_ratio_choice})", use_container_width=True)
                 st.markdown("**📋 Copy Prompt:**")
