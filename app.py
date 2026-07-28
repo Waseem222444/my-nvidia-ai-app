@@ -4,52 +4,156 @@ import base64
 from PIL import Image
 import io
 
-# Page setup
-st.set_page_config(page_title="AI Scene Generator", page_icon="🎨")
-st.title("🎨 AI Image & Scene Generator")
-
-# Retrieve API key securely from Streamlit secrets
-nvidia_api_key = st.secrets.get("NVIDIA_API_KEY")
-
-if not nvidia_api_key:
-    st.error("Missing API Key! Please add NVIDIA_API_KEY in Streamlit Secrets.")
-    st.stop()
-
-# User prompt input
-prompt_text = st.text_input(
-    "Enter a prompt for your scene:",
-    "A mysterious Ghibli style village with glowing lanterns at dusk"
+# Page Configuration
+st.set_page_config(
+    page_title="Studio AI Studio",
+    page_icon="✨",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-if st.button("Generate Image"):
-    with st.spinner("Generating scene with NVIDIA FLUX model..."):
-        try:
-            # Correct NVIDIA cloud endpoint for FLUX.1 Schnell
-            invoke_url = "https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-schnell"
-            
-            headers = {
-                "Authorization": f"Bearer {nvidia_api_key}",
-                "Accept": "application/json",
-            }
-            
-            payload = {
-                "prompt": prompt_text
-            }
-            
-            # Send request to NVIDIA
-            response = requests.post(invoke_url, headers=headers, json=payload)
-            response.raise_for_status()
-            
-            response_data = response.json()
-            
-            # Decode image from NVIDIA base64 response
-            base64_image = response_data["artifacts"][0]["base64"]
-            image_bytes = base64.b64decode(base64_image)
-            img = Image.open(io.BytesIO(image_bytes))
-            
-            # Display image in Streamlit
-            st.image(img, caption=f"Generated Scene: {prompt_text}", use_container_width=True)
-            st.success("Image generated successfully!")
-            
-        except Exception as e:
-            st.error(f"Generation Error: {e}")
+# Custom CSS for modern Gemini-style UI
+st.markdown("""
+<style>
+    /* Dark theme background */
+    .stApp {
+        background-color: #0E1117;
+        color: #E0E0E0;
+    }
+    
+    /* Header Styling */
+    .main-header {
+        font-family: 'Inter', sans-serif;
+        font-size: 2.2rem;
+        font-weight: 700;
+        background: linear-gradient(90deg, #7F56D9, #00D2FF);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 0.5rem;
+    }
+    
+    .sub-header {
+        color: #94A3B8;
+        font-size: 1rem;
+        margin-bottom: 2rem;
+    }
+
+    /* Card Containers */
+    .css-card {
+        background-color: #1E293B;
+        border-radius: 12px;
+        padding: 1.5rem;
+        border: 1px solid #334155;
+        margin-bottom: 1rem;
+    }
+
+    /* Custom Button Style */
+    .stButton>button {
+        background: linear-gradient(135deg, #6366F1 0%, #A855F7 100%);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        padding: 0.6rem 1.2rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        width: 100%;
+    }
+    
+    .stButton>button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(168, 85, 247, 0.4);
+    }
+</style>
+""", unsafe_allow_shortcut_html=True)
+
+# API Key Validation
+nvidia_api_key = st.secrets.get("NVIDIA_API_KEY")
+if not nvidia_api_key:
+    st.error("⚠️ Missing NVIDIA_API_KEY in Streamlit Secrets!")
+    st.stop()
+
+# Header
+st.markdown('<div class="main-header">✨ AI Vision & Scene Studio</div>', unsafe_allow_shortcut_html=True)
+st.markdown('<div class="sub-header">Generate cinematic Ghibli scenes, upload reference images, and create AI visuals.</div>', unsafe_allow_shortcut_html=True)
+
+# Sidebar Controls
+with st.sidebar:
+    st.header("⚙️ Studio Controls")
+    
+    style_preset = st.selectbox(
+        "🎨 Style Preset",
+        ["Studio Ghibli Anime", "Cinematic Photorealistic", "Fantasy Concept Art", "3D Render / Animation"]
+    )
+    
+    aspect_ratio = st.selectbox(
+        "📐 Aspect Ratio",
+        ["16:9 (Landscape)", "1:1 (Square)", "9:16 (Vertical/Reels)"]
+    )
+    
+    st.divider()
+    st.markdown("### 🖼️ Reference Image")
+    uploaded_file = st.file_uploader("Upload reference photo (Optional)", type=["png", "jpg", "jpeg"])
+    
+    if uploaded_file:
+        st.image(uploaded_file, caption="Uploaded Photo", use_container_width=True)
+
+# Initialize Session Chat History
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+
+# Display Chat History (Gemini Style)
+for message in st.session_state.chat_history:
+    with st.chat_message(message["role"]):
+        if message.get("type") == "text":
+            st.markdown(message["content"])
+        elif message.get("type") == "image":
+            st.image(message["content"], caption=message.get("caption", ""), use_container_width=True)
+
+# Chat Input Field at the bottom
+if prompt := st.chat_input("Describe the scene or image you want to generate..."):
+    # Add user message to chat history
+    st.session_state.chat_history.append({"role": "user", "type": "text", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
+
+    # Generate Image Assistant Response
+    with st.chat_message("assistant"):
+        with st.spinner("✨ Crafting visual scene via NVIDIA FLUX..."):
+            try:
+                # Combine prompt with selected style
+                full_prompt = f"{prompt}, {style_preset} style, highly detailed, 8k resolution"
+                
+                invoke_url = "https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-schnell"
+                
+                headers = {
+                    "Authorization": f"Bearer {nvidia_api_key}",
+                    "Accept": "application/json",
+                }
+                
+                payload = {"prompt": full_prompt}
+                
+                response = requests.post(invoke_url, headers=headers, json=payload)
+                response.raise_for_status()
+                
+                response_data = response.json()
+                
+                # Decode image
+                base64_image = response_data["artifacts"][0]["base64"]
+                image_bytes = base64.b64decode(base64_image)
+                img = Image.open(io.BytesIO(image_bytes))
+                
+                # Render Image in Chat
+                st.image(img, caption=f"Generated Scene: {prompt}", use_container_width=True)
+                
+                # Save Assistant response to history
+                st.session_state.chat_history.append({
+                    "role": "assistant",
+                    "type": "image",
+                    "content": img,
+                    "caption": f"Generated ({style_preset}): {prompt}"
+                })
+                
+            except Exception as e:
+                error_msg = f"Generation Error: {e}"
+                st.error(error_msg)
+                st.session_state.chat_history.append({"role": "assistant", "type": "text", "content": error_msg})
