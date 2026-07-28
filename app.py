@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 from PIL import Image
 import io
+import base64
 
 # Page Configuration
 st.set_page_config(
@@ -95,31 +96,31 @@ if prompt := st.chat_input("Describe the scene or image you want to generate..."
                 full_prompt = f"{prompt}, {style_preset} style, highly detailed, master piece"
                 headers = {"Authorization": f"Bearer {hf_token.strip()}"}
                 
-                # Public Stable Diffusion Endpoint
-                API_URL = "https://api-inference.huggingface.co/models/runwayml/stable-diffusion-v1-5"
+                # Active Hugging Face Router API endpoint
+                model_id = "runwayml/stable-diffusion-v1-5"
+                API_URL = f"https://router.huggingface.co/hf-inference/v1/models/{model_id}"
                 
                 if ref_image:
-                    # Convert uploaded reference PIL Image to bytes
-                    img_byte_arr = io.BytesIO()
-                    ref_image.save(img_byte_arr, format='JPEG')
-                    img_bytes = img_byte_arr.getvalue()
+                    # Convert reference image to base64 for image-to-image pipeline
+                    buffered = io.BytesIO()
+                    ref_image.save(buffered, format="JPEG")
+                    img_b64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
                     
-                    # Call Image-to-Image API with binary image payload & prompt parameters
-                    response = requests.post(
-                        API_URL, 
-                        headers=headers, 
-                        data=img_bytes, 
-                        params={"inputs": full_prompt},
-                        timeout=60
-                    )
+                    payload = {
+                        "inputs": full_prompt,
+                        "image": f"data:image/jpeg;base64,{img_b64}"
+                    }
                 else:
-                    # Standard Text-to-Image call
-                    response = requests.post(
-                        API_URL, 
-                        headers=headers, 
-                        json={"inputs": full_prompt},
-                        timeout=60
-                    )
+                    payload = {
+                        "inputs": full_prompt
+                    }
+
+                response = requests.post(
+                    API_URL, 
+                    headers=headers, 
+                    json=payload,
+                    timeout=60
+                )
 
                 if response.status_code == 200:
                     generated_img = Image.open(io.BytesIO(response.content))
