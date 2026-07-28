@@ -1,6 +1,5 @@
 import streamlit as st
 import requests
-import base64
 from PIL import Image
 import io
 
@@ -12,7 +11,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for dark theme
+# Custom CSS for modern dark theme
 st.markdown("""
 <style>
     .stApp {
@@ -37,9 +36,9 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # API Key Validation
-nvidia_api_key = st.secrets.get("NVIDIA_API_KEY")
-if not nvidia_api_key:
-    st.error("⚠️ Missing NVIDIA_API_KEY in Streamlit Secrets!")
+hf_token = st.secrets.get("HF_TOKEN")
+if not hf_token:
+    st.error("⚠️ Missing HF_TOKEN in Streamlit Secrets!")
     st.stop()
 
 # Header
@@ -84,65 +83,48 @@ for message in st.session_state.chat_history:
 
 # Chat Input Field
 if prompt := st.chat_input("Describe the scene or image you want to generate..."):
-    # Save user message to chat history
     st.session_state.chat_history.append({"role": "user", "type": "text", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Generate Image Assistant Response
     with st.chat_message("assistant"):
-        with st.spinner("✨ Crafting visual scene via NVIDIA FLUX..."):
+        with st.spinner("✨ Crafting visual scene via FLUX.1 Schnell..."):
             try:
                 full_prompt = f"{prompt}, {style_preset} style, highly detailed, master piece"
                 
-                # Correct NVIDIA GenAI endpoint URL
-                invoke_url = "https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-schnell"
+                # Hugging Face FLUX.1-schnell Inference URL
+                API_URL = "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell"
+                headers = {"Authorization": f"Bearer {hf_token.strip()}"}
                 
-                headers = {
-                    "Authorization": f"Bearer {nvidia_api_key.strip()}",
-                    "Accept": "application/json",
-                    "Content-Type": "application/json"
-                }
+                payload = {"inputs": full_prompt}
                 
-                payload = {
-                    "prompt": full_prompt
-                }
+                response = requests.post(API_URL, headers=headers, json=payload, timeout=60)
                 
-                response = requests.post(invoke_url, headers=headers, json=payload, timeout=90)
-                
-                if response.status_code != 200:
+                if response.status_code == 200:
+                    image_bytes = response.content
+                    img = Image.open(io.BytesIO(image_bytes))
+                    
+                    st.image(img, caption=f"Generated Scene ({aspect_ratio_choice})", use_container_width=True)
+                    st.markdown("**📋 Copy Prompt:**")
+                    st.code(full_prompt, language="text")
+                    
+                    st.session_state.chat_history.append({
+                        "role": "assistant",
+                        "type": "image",
+                        "content": img,
+                        "caption": f"Generated ({style_preset}): {prompt}",
+                        "full_prompt": full_prompt
+                    })
+                else:
                     st.error(f"API Error ({response.status_code}): {response.text}")
                     st.session_state.chat_history.append({
                         "role": "assistant",
                         "type": "text",
                         "content": f"⚠️ API Error ({response.status_code}): {response.text}"
                     })
-                else:
-                    response_data = response.json()
-                    
-                    if "artifacts" in response_data and len(response_data["artifacts"]) > 0:
-                        base64_image = response_data["artifacts"][0]["base64"]
-                        image_bytes = base64.b64decode(base64_image)
-                        img = Image.open(io.BytesIO(image_bytes))
-                        
-                        # Display Image and Copyable Code Block
-                        st.image(img, caption=f"Generated Scene ({aspect_ratio_choice})", use_container_width=True)
-                        st.markdown("**📋 Copy Prompt:**")
-                        st.code(full_prompt, language="text")
-                        
-                        # Store in chat history
-                        st.session_state.chat_history.append({
-                            "role": "assistant",
-                            "type": "image",
-                            "content": img,
-                            "caption": f"Generated ({style_preset}): {prompt}",
-                            "full_prompt": full_prompt
-                        })
-                    else:
-                        st.error(f"Unexpected response format: {response_data}")
 
             except requests.exceptions.Timeout:
-                err = "⏱️ Request timed out. NVIDIA server took longer than expected. Please try again."
+                err = "⏱️ Request timed out. Please try again."
                 st.error(err)
                 st.session_state.chat_history.append({"role": "assistant", "type": "text", "content": err})
             except Exception as e:
