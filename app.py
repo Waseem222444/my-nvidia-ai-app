@@ -1,7 +1,6 @@
 import streamlit as st
-import requests
+from huggingface_hub import InferenceClient
 from PIL import Image
-import io
 
 # Page Configuration
 st.set_page_config(
@@ -88,45 +87,31 @@ if prompt := st.chat_input("Describe the scene or image you want to generate..."
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        with st.spinner("✨ Crafting visual scene..."):
+        with st.spinner("✨ Generating scene with AI..."):
             try:
                 full_prompt = f"{prompt}, {style_preset} style, highly detailed, master piece"
                 
-                # Standard SDXL Serverless Endpoint
-                API_URL = "https://router.huggingface.co/hf-inference/models/stabilityai/stable-diffusion-xl-base-1.0"
-                headers = {"Authorization": f"Bearer {hf_token.strip()}"}
+                # Official Hugging Face Client
+                client = InferenceClient(api_key=hf_token.strip())
                 
-                payload = {"inputs": full_prompt}
+                # Text-to-Image Generation
+                img = client.text_to_image(
+                    prompt=full_prompt,
+                    model="black-forest-labs/FLUX.1-dev"
+                )
                 
-                response = requests.post(API_URL, headers=headers, json=payload, timeout=60)
+                st.image(img, caption=f"Generated Scene ({aspect_ratio_choice})", use_container_width=True)
+                st.markdown("**📋 Copy Prompt:**")
+                st.code(full_prompt, language="text")
                 
-                if response.status_code == 200:
-                    image_bytes = response.content
-                    img = Image.open(io.BytesIO(image_bytes))
-                    
-                    st.image(img, caption=f"Generated Scene ({aspect_ratio_choice})", use_container_width=True)
-                    st.markdown("**📋 Copy Prompt:**")
-                    st.code(full_prompt, language="text")
-                    
-                    st.session_state.chat_history.append({
-                        "role": "assistant",
-                        "type": "image",
-                        "content": img,
-                        "caption": f"Generated ({style_preset}): {prompt}",
-                        "full_prompt": full_prompt
-                    })
-                else:
-                    st.error(f"API Error ({response.status_code}): {response.text}")
-                    st.session_state.chat_history.append({
-                        "role": "assistant",
-                        "type": "text",
-                        "content": f"⚠️ API Error ({response.status_code}): {response.text}"
-                    })
+                st.session_state.chat_history.append({
+                    "role": "assistant",
+                    "type": "image",
+                    "content": img,
+                    "caption": f"Generated ({style_preset}): {prompt}",
+                    "full_prompt": full_prompt
+                })
 
-            except requests.exceptions.Timeout:
-                err = "⏱️ Request timed out. Please try again."
-                st.error(err)
-                st.session_state.chat_history.append({"role": "assistant", "type": "text", "content": err})
             except Exception as e:
                 err = f"Execution Error: {str(e)}"
                 st.error(err)
