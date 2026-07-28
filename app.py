@@ -95,8 +95,8 @@ if prompt := st.chat_input("Describe the scene or image you want to generate..."
             try:
                 full_prompt = f"{prompt}, {style_preset} style, highly detailed, master piece"
                 
-                # Corrected endpoint URL
-                invoke_url = "https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux_1-schnell"
+                # Correct NVIDIA GenAI endpoint URL
+                invoke_url = "https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-schnell"
                 
                 headers = {
                     "Authorization": f"Bearer {nvidia_api_key.strip()}",
@@ -105,12 +105,10 @@ if prompt := st.chat_input("Describe the scene or image you want to generate..."
                 }
                 
                 payload = {
-                    "prompt": full_prompt,
-                    "aspect_ratio": aspect_ratio_choice
+                    "prompt": full_prompt
                 }
                 
-                # Increased timeout to 120 seconds to prevent early timeout
-                response = requests.post(invoke_url, headers=headers, json=payload, timeout=120)
+                response = requests.post(invoke_url, headers=headers, json=payload, timeout=90)
                 
                 if response.status_code != 200:
                     st.error(f"API Error ({response.status_code}): {response.text}")
@@ -122,7 +120,6 @@ if prompt := st.chat_input("Describe the scene or image you want to generate..."
                 else:
                     response_data = response.json()
                     
-                    # Extract image artifacts safely
                     if "artifacts" in response_data and len(response_data["artifacts"]) > 0:
                         base64_image = response_data["artifacts"][0]["base64"]
                         image_bytes = base64.b64decode(base64_image)
@@ -142,10 +139,10 @@ if prompt := st.chat_input("Describe the scene or image you want to generate..."
                             "full_prompt": full_prompt
                         })
                     else:
-                        st.error(f"Unexpected response payload format: {response_data}")
+                        st.error(f"Unexpected response format: {response_data}")
 
             except requests.exceptions.Timeout:
-                err = "⏱️ Request timed out. NVIDIA queue took longer than 2 minutes. Please try submitting again."
+                err = "⏱️ Request timed out. NVIDIA server took longer than expected. Please try again."
                 st.error(err)
                 st.session_state.chat_history.append({"role": "assistant", "type": "text", "content": err})
             except Exception as e:
