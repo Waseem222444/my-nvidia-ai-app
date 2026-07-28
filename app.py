@@ -11,7 +11,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for modern dark theme
+# Custom CSS for dark theme
 st.markdown("""
 <style>
     .stApp {
@@ -92,8 +92,8 @@ if prompt := st.chat_input("Describe the scene or image you want to generate..."
             try:
                 full_prompt = f"{prompt}, {style_preset} style, highly detailed, master piece"
                 
-                # Hugging Face FLUX.1-schnell Inference URL
-                API_URL = "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell"
+                # Updated Hugging Face Inference Router Endpoint URL
+                API_URL = "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell"
                 headers = {"Authorization": f"Bearer {hf_token.strip()}"}
                 
                 payload = {"inputs": full_prompt}
