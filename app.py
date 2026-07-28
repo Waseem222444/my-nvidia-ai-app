@@ -98,10 +98,9 @@ if prompt := st.chat_input("Describe the scene or image you want to generate..."
                 full_prompt = f"{prompt}, {style_preset} style, highly detailed, master piece"
                 encoded_prompt = urllib.parse.quote(full_prompt)
                 
-                # Pollinations AI Free Endpoint
+                # Free Endpoint
                 image_url = f"https://pollinations.ai/p/{encoded_prompt}?width={width}&height={height}&seed=42&model=flux"
                 
-                # Fetch generated image
                 response = requests.get(image_url, timeout=60)
                 
                 if response.status_code == 200:
@@ -128,4 +127,3 @@ if prompt := st.chat_input("Describe the scene or image you want to generate..."
                 err = f"Execution Error: {err_msg}"
                 st.error(err)
                 st.session_state.chat_history.append({"role": "assistant", "type": "text", "content": err})
-    
