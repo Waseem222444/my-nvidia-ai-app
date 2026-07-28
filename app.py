@@ -1,6 +1,7 @@
 import streamlit as st
 from huggingface_hub import InferenceClient
 from PIL import Image
+import traceback
 
 # Page Configuration
 st.set_page_config(
@@ -64,7 +65,7 @@ with st.sidebar:
     
     ref_image = None
     if uploaded_file:
-        ref_image = Image.open(uploaded_file)
+        ref_image = Image.open(uploaded_file).convert("RGB")
         st.image(ref_image, caption="Uploaded Reference Photo", use_container_width=True)
 
 # Initialize Session Chat History
@@ -89,37 +90,49 @@ if prompt := st.chat_input("Describe the scene or image you want to generate..."
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        with st.spinner("✨ Generating scene with free AI model..."):
+        with st.spinner("✨ Generating scene with AI..."):
             try:
                 full_prompt = f"{prompt}, {style_preset} style, highly detailed, master piece"
                 client = InferenceClient(api_key=hf_token.strip())
                 
-                # Free tier compatible models
+                img = None
+                
                 if ref_image:
-                    img = client.image_to_image(
-                        image=ref_image,
-                        prompt=full_prompt,
-                        model="runwayml/stable-diffusion-v1-5"
-                    )
+                    try:
+                        # Attempt image-to-image conversion
+                        img = client.image_to_image(
+                            image=ref_image,
+                            prompt=full_prompt,
+                            model="runwayml/stable-diffusion-v1-5"
+                        )
+                    except Exception as img_err:
+                        st.warning(f"⚠️ Reference image processing failed ({str(img_err)}). Generating from prompt only...")
+                        # Fallback to text-to-image if image-to-image endpoint is unavailable
+                        img = client.text_to_image(
+                            prompt=full_prompt,
+                            model="runwayml/stable-diffusion-v1-5"
+                        )
                 else:
                     img = client.text_to_image(
                         prompt=full_prompt,
                         model="runwayml/stable-diffusion-v1-5"
                     )
                 
-                st.image(img, caption=f"Generated Scene ({aspect_ratio_choice})", use_container_width=True)
-                st.markdown("**📋 Copy Prompt:**")
-                st.code(full_prompt, language="text")
-                
-                st.session_state.chat_history.append({
-                    "role": "assistant",
-                    "type": "image",
-                    "content": img,
-                    "caption": f"Generated ({style_preset}): {prompt}",
-                    "full_prompt": full_prompt
-                })
+                if img:
+                    st.image(img, caption=f"Generated Scene ({aspect_ratio_choice})", use_container_width=True)
+                    st.markdown("**📋 Copy Prompt:**")
+                    st.code(full_prompt, language="text")
+                    
+                    st.session_state.chat_history.append({
+                        "role": "assistant",
+                        "type": "image",
+                        "content": img,
+                        "caption": f"Generated ({style_preset}): {prompt}",
+                        "full_prompt": full_prompt
+                    })
 
             except Exception as e:
-                err = f"Execution Error: {str(e)}"
+                err_msg = str(e) if str(e) else repr(e)
+                err = f"Execution Error: {err_msg}"
                 st.error(err)
                 st.session_state.chat_history.append({"role": "assistant", "type": "text", "content": err})
