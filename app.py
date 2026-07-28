@@ -12,16 +12,13 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for modern dark theme
+# Custom CSS for dark theme
 st.markdown("""
 <style>
-    /* Dark theme background */
     .stApp {
         background-color: #0E1117;
         color: #E0E0E0;
     }
-    
-    /* Header Styling */
     .main-header {
         font-family: 'Inter', sans-serif;
         font-size: 2.2rem;
@@ -31,7 +28,6 @@ st.markdown("""
         -webkit-text-fill-color: transparent;
         margin-bottom: 0.5rem;
     }
-    
     .sub-header {
         color: #94A3B8;
         font-size: 1rem;
@@ -71,6 +67,14 @@ with st.sidebar:
     if uploaded_file:
         st.image(uploaded_file, caption="Uploaded Photo", use_container_width=True)
 
+# Map Aspect Ratios to FLUX Supported Dimensions
+dim_map = {
+    "16:9 (Landscape)": (1344, 768),
+    "1:1 (Square)": (1024, 1024),
+    "9:16 (Vertical/Reels)": (768, 1344)
+}
+width, height = dim_map.get(aspect_ratio, (1024, 1024))
+
 # Initialize Session Chat History
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
@@ -82,10 +86,13 @@ for message in st.session_state.chat_history:
             st.markdown(message["content"])
         elif message.get("type") == "image":
             st.image(message["content"], caption=message.get("caption", ""), use_container_width=True)
+            if "full_prompt" in message:
+                st.markdown("**📋 Copy Prompt:**")
+                st.code(message["full_prompt"], language="text")
 
 # Chat Input Field
 if prompt := st.chat_input("Describe the scene or image you want to generate..."):
-    # Add user message to chat history
+    # Save user message to chat history
     st.session_state.chat_history.append({"role": "user", "type": "text", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
@@ -94,40 +101,57 @@ if prompt := st.chat_input("Describe the scene or image you want to generate..."
     with st.chat_message("assistant"):
         with st.spinner("✨ Crafting visual scene via NVIDIA FLUX..."):
             try:
-                # Combine prompt with selected style
-                full_prompt = f"{prompt}, {style_preset} style, highly detailed, 8k resolution"
+                full_prompt = f"{prompt}, {style_preset} style, highly detailed, master piece"
                 
                 invoke_url = "https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-schnell"
                 
                 headers = {
-                    "Authorization": f"Bearer {nvidia_api_key}",
+                    "Authorization": f"Bearer {nvidia_api_key.strip()}",
                     "Accept": "application/json",
+                    "Content-Type": "application/json"
                 }
                 
-                payload = {"prompt": full_prompt}
+                # Payload cleaned strictly for FLUX Schnell API
+                payload = {
+                    "prompt": full_prompt,
+                    "width": width,
+                    "height": height
+                }
                 
-                response = requests.post(invoke_url, headers=headers, json=payload)
-                response.raise_for_status()
+                response = requests.post(invoke_url, headers=headers, json=payload, timeout=45)
                 
-                response_data = response.json()
+                if response.status_code != 200:
+                    st.error(f"API Error ({response.status_code}): {response.text}")
+                    st.session_state.chat_history.append({
+                        "role": "assistant",
+                        "type": "text",
+                        "content": f"⚠️ API Error ({response.status_code}): {response.text}"
+                    })
+                else:
+                    response_data = response.json()
+                    base64_image = response_data["artifacts"][0]["base64"]
+                    image_bytes = base64.b64decode(base64_image)
+                    img = Image.open(io.BytesIO(image_bytes))
+                    
+                    # Display Image and Copyable Code Block
+                    st.image(img, caption=f"Generated Scene ({aspect_ratio})", use_container_width=True)
+                    st.markdown("**📋 Copy Prompt:**")
+                    st.code(full_prompt, language="text")
+                    
+                    # Store in chat history
+                    st.session_state.chat_history.append({
+                        "role": "assistant",
+                        "type": "image",
+                        "content": img,
+                        "caption": f"Generated ({style_preset}): {prompt}",
+                        "full_prompt": full_prompt
+                    })
                 
-                # Decode image
-                base64_image = response_data["artifacts"][0]["base64"]
-                image_bytes = base64.b64decode(base64_image)
-                img = Image.open(io.BytesIO(image_bytes))
-                
-                # Render Image in Chat
-                st.image(img, caption=f"Generated Scene: {prompt}", use_container_width=True)
-                
-                # Save Assistant response to history
-                st.session_state.chat_history.append({
-                    "role": "assistant",
-                    "type": "image",
-                    "content": img,
-                    "caption": f"Generated ({style_preset}): {prompt}"
-                })
-                
+            except requests.exceptions.Timeout:
+                err = "⏱️ Request timed out. NVIDIA server took too long to respond. Please try again."
+                st.error(err)
+                st.session_state.chat_history.append({"role": "assistant", "type": "text", "content": err})
             except Exception as e:
-                error_msg = f"Generation Error: {e}"
-                st.error(error_msg)
-                st.session_state.chat_history.append({"role": "assistant", "type": "text", "content": error_msg})
+                err = f"Execution Error: {str(e)}"
+                st.error(err)
+                st.session_state.chat_history.append({"role": "assistant", "type": "text", "content": err})
