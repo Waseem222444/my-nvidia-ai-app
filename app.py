@@ -88,12 +88,12 @@ if prompt := st.chat_input("Describe the scene or image you want to generate..."
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        with st.spinner("✨ Crafting visual scene via FLUX.1 Schnell..."):
+        with st.spinner("✨ Crafting visual scene..."):
             try:
                 full_prompt = f"{prompt}, {style_preset} style, highly detailed, master piece"
                 
-                # Updated Hugging Face Inference Router Endpoint URL
-                API_URL = "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell"
+                # Standard SDXL Serverless Endpoint
+                API_URL = "https://router.huggingface.co/hf-inference/models/stabilityai/stable-diffusion-xl-base-1.0"
                 headers = {"Authorization": f"Bearer {hf_token.strip()}"}
                 
                 payload = {"inputs": full_prompt}
