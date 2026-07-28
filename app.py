@@ -1,60 +1,53 @@
 import streamlit as st
-from openai import OpenAI
+import requests
+import base64
+from PIL import Image
+import io
 
-# Page configuration
-st.set_page_config(page_title="NVIDIA AI Assistant", page_icon="🤖")
-st.title("🤖 NVIDIA AI Assistant")
+# Setup page config
+st.set_page_config(page_title="AI Visual & Video Prompt Generator", page_icon="🎨")
+st.title("🎨 AI Image & Scene Generator")
 
-# Fetch API key securely from Streamlit secrets
+# Retrieve API key securely from Streamlit secrets
 nvidia_api_key = st.secrets.get("NVIDIA_API_KEY")
 
 if not nvidia_api_key:
     st.error("Missing API Key! Please add NVIDIA_API_KEY in Streamlit Secrets.")
     st.stop()
 
-# Initialize OpenAI client with NVIDIA endpoint
-client = OpenAI(
-    base_url="https://integrate.api.nvidia.com/v1",
-    api_key=nvidia_api_key
-)
-
-# Chat history state
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-# Display conversation history
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
-
 # User prompt input
-if prompt := st.chat_input("Ask anything..."):
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
+prompt_text = st.text_input("Enter a prompt for image/video scene:", "A mysterious Ghibli style village with glowing lanterns at dusk")
 
-    with st.chat_message("assistant"):
-        response_box = st.empty()
-        full_response = ""
-        
+if st.button("Generate Image"):
+    with st.spinner("Generating image from NVIDIA API..."):
         try:
-            completion = client.chat.completions.create(
-                model="meta/llama-3.1-8b-instruct",
-                messages=[{"role": m["role"], "content": m["content"]} for m in st.session_state.messages],
-                temperature=0.5,
-                stream=True
-            )
+            # Endpoint for Stable Diffusion XL on NVIDIA Build
+            invoke_url = "https://ai.api.nvidia.com/v1/genai/stabilityai/stable-diffusion-xl"
             
-            for chunk in completion:
-                # Safely check if chunk has choices before reading
-                if chunk.choices and len(chunk.choices) > 0:
-                    delta_content = chunk.choices[0].delta.content
-                    if delta_content:
-                        full_response += delta_content
-                        response_box.markdown(full_response + "▌")
+            headers = {
+                "Authorization": f"Bearer {nvidia_api_key}",
+                "Accept": "application/json",
+            }
             
-            response_box.markdown(full_response)
-            st.session_state.messages.append({"role": "assistant", "content": full_response})
+            payload = {
+                "text_prompts": [{"text": prompt_text}],
+                "cfg_scale": 7,
+                "sampler": "K_DPM_2_ANCESTRAL",
+                "seed": 0,
+                "steps": 25
+            }
             
+            response = requests.post(invoke_url, headers=headers, json=payload)
+            response.raise_for_status()
+            
+            response_data = response.json()
+            
+            # Decode the base64 image returned by API
+            for i, image in enumerate(response_data.get("artifacts", [])):
+                image_bytes = base64.b64decode(image["base64"])
+                img = Image.open(io.BytesIO(image_bytes))
+                st.image(img, caption=f"Generated Scene: {prompt_text}", use_container_width=True)
+                st.success("Generation Complete!")
+                
         except Exception as e:
-            st.error(f"API Error: {e}")
+            st.error(f"Error generating image: {e}")
