@@ -1,10 +1,11 @@
 import streamlit as st
 from openai import OpenAI
 
+# Page configuration
 st.set_page_config(page_title="NVIDIA AI Assistant", page_icon="🤖")
 st.title("🤖 NVIDIA AI Assistant")
 
-# Retrieve API key securely from Streamlit secrets
+# Fetch API key securely from Streamlit secrets
 nvidia_api_key = st.secrets.get("NVIDIA_API_KEY")
 
 if not nvidia_api_key:
@@ -17,13 +18,16 @@ client = OpenAI(
     api_key=nvidia_api_key
 )
 
+# Chat history state
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
+# Display conversation history
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
+# User prompt input
 if prompt := st.chat_input("Ask anything..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
@@ -42,9 +46,12 @@ if prompt := st.chat_input("Ask anything..."):
             )
             
             for chunk in completion:
-                if chunk.choices[0].delta.content:
-                    full_response += chunk.choices[0].delta.content
-                    response_box.markdown(full_response + "▌")
+                # Safely check if chunk has choices before reading
+                if chunk.choices and len(chunk.choices) > 0:
+                    delta_content = chunk.choices[0].delta.content
+                    if delta_content:
+                        full_response += delta_content
+                        response_box.markdown(full_response + "▌")
             
             response_box.markdown(full_response)
             st.session_state.messages.append({"role": "assistant", "content": full_response})
