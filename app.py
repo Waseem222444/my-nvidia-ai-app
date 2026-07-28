@@ -55,9 +55,9 @@ with st.sidebar:
         ["Studio Ghibli Anime", "Cinematic Photorealistic", "Fantasy Concept Art", "3D Render / Animation"]
     )
     
-    aspect_ratio = st.selectbox(
+    aspect_ratio_choice = st.selectbox(
         "📐 Aspect Ratio",
-        ["16:9 (Landscape)", "1:1 (Square)", "9:16 (Vertical/Reels)"]
+        ["16:9", "1:1", "9:16"]
     )
     
     st.divider()
@@ -66,14 +66,6 @@ with st.sidebar:
     
     if uploaded_file:
         st.image(uploaded_file, caption="Uploaded Photo", use_container_width=True)
-
-# Map Aspect Ratios to FLUX Supported Dimensions
-dim_map = {
-    "16:9 (Landscape)": (1344, 768),
-    "1:1 (Square)": (1024, 1024),
-    "9:16 (Vertical/Reels)": (768, 1344)
-}
-width, height = dim_map.get(aspect_ratio, (1024, 1024))
 
 # Initialize Session Chat History
 if "chat_history" not in st.session_state:
@@ -103,7 +95,8 @@ if prompt := st.chat_input("Describe the scene or image you want to generate..."
             try:
                 full_prompt = f"{prompt}, {style_preset} style, highly detailed, master piece"
                 
-                invoke_url = "https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-schnell"
+                # Corrected endpoint URL
+                invoke_url = "https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux_1-schnell"
                 
                 headers = {
                     "Authorization": f"Bearer {nvidia_api_key.strip()}",
@@ -111,14 +104,13 @@ if prompt := st.chat_input("Describe the scene or image you want to generate..."
                     "Content-Type": "application/json"
                 }
                 
-                # Payload cleaned strictly for FLUX Schnell API
                 payload = {
                     "prompt": full_prompt,
-                    "width": width,
-                    "height": height
+                    "aspect_ratio": aspect_ratio_choice
                 }
                 
-                response = requests.post(invoke_url, headers=headers, json=payload, timeout=45)
+                # Increased timeout to 120 seconds to prevent early timeout
+                response = requests.post(invoke_url, headers=headers, json=payload, timeout=120)
                 
                 if response.status_code != 200:
                     st.error(f"API Error ({response.status_code}): {response.text}")
@@ -129,26 +121,31 @@ if prompt := st.chat_input("Describe the scene or image you want to generate..."
                     })
                 else:
                     response_data = response.json()
-                    base64_image = response_data["artifacts"][0]["base64"]
-                    image_bytes = base64.b64decode(base64_image)
-                    img = Image.open(io.BytesIO(image_bytes))
                     
-                    # Display Image and Copyable Code Block
-                    st.image(img, caption=f"Generated Scene ({aspect_ratio})", use_container_width=True)
-                    st.markdown("**📋 Copy Prompt:**")
-                    st.code(full_prompt, language="text")
-                    
-                    # Store in chat history
-                    st.session_state.chat_history.append({
-                        "role": "assistant",
-                        "type": "image",
-                        "content": img,
-                        "caption": f"Generated ({style_preset}): {prompt}",
-                        "full_prompt": full_prompt
-                    })
-                
+                    # Extract image artifacts safely
+                    if "artifacts" in response_data and len(response_data["artifacts"]) > 0:
+                        base64_image = response_data["artifacts"][0]["base64"]
+                        image_bytes = base64.b64decode(base64_image)
+                        img = Image.open(io.BytesIO(image_bytes))
+                        
+                        # Display Image and Copyable Code Block
+                        st.image(img, caption=f"Generated Scene ({aspect_ratio_choice})", use_container_width=True)
+                        st.markdown("**📋 Copy Prompt:**")
+                        st.code(full_prompt, language="text")
+                        
+                        # Store in chat history
+                        st.session_state.chat_history.append({
+                            "role": "assistant",
+                            "type": "image",
+                            "content": img,
+                            "caption": f"Generated ({style_preset}): {prompt}",
+                            "full_prompt": full_prompt
+                        })
+                    else:
+                        st.error(f"Unexpected response payload format: {response_data}")
+
             except requests.exceptions.Timeout:
-                err = "⏱️ Request timed out. NVIDIA server took too long to respond. Please try again."
+                err = "⏱️ Request timed out. NVIDIA queue took longer than 2 minutes. Please try submitting again."
                 st.error(err)
                 st.session_state.chat_history.append({"role": "assistant", "type": "text", "content": err})
             except Exception as e:
