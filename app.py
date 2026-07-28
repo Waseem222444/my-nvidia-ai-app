@@ -1,8 +1,8 @@
-import streamlit as st
+            import streamlit as st
 import requests
 from PIL import Image
 import io
-import base64
+import urllib.parse
 
 # Page Configuration
 st.set_page_config(
@@ -36,12 +36,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# API Key Validation
-hf_token = st.secrets.get("HF_TOKEN")
-if not hf_token:
-    st.error("⚠️ Missing HF_TOKEN in Streamlit Secrets!")
-    st.stop()
-
 # Header
 st.markdown('<div class="main-header">✨ AI Vision & Scene Studio</div>', unsafe_allow_html=True)
 st.markdown('<div class="sub-header">Generate cinematic scenes, upload reference images, and create AI visuals.</div>', unsafe_allow_html=True)
@@ -59,6 +53,14 @@ with st.sidebar:
         "📐 Aspect Ratio",
         ["16:9", "1:1", "9:16"]
     )
+    
+    # Map aspect ratio to dimensions
+    dimensions = {
+        "16:9": (1280, 720),
+        "1:1": (1024, 1024),
+        "9:16": (720, 1280)
+    }
+    width, height = dimensions[aspect_ratio_choice]
     
     st.divider()
     st.markdown("### 🖼️ Reference Image")
@@ -94,34 +96,14 @@ if prompt := st.chat_input("Describe the scene or image you want to generate..."
         with st.spinner("✨ Generating scene with AI..."):
             try:
                 full_prompt = f"{prompt}, {style_preset} style, highly detailed, master piece"
-                headers = {"Authorization": f"Bearer {hf_token.strip()}"}
+                encoded_prompt = urllib.parse.quote(full_prompt)
                 
-                # Active Hugging Face Router API endpoint
-                model_id = "runwayml/stable-diffusion-v1-5"
-                API_URL = f"https://router.huggingface.co/hf-inference/v1/models/{model_id}"
+                # Pollinations AI Free Endpoint
+                image_url = f"https://pollinations.ai/p/{encoded_prompt}?width={width}&height={height}&seed=42&model=flux"
                 
-                if ref_image:
-                    # Convert reference image to base64 for image-to-image pipeline
-                    buffered = io.BytesIO()
-                    ref_image.save(buffered, format="JPEG")
-                    img_b64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
-                    
-                    payload = {
-                        "inputs": full_prompt,
-                        "image": f"data:image/jpeg;base64,{img_b64}"
-                    }
-                else:
-                    payload = {
-                        "inputs": full_prompt
-                    }
-
-                response = requests.post(
-                    API_URL, 
-                    headers=headers, 
-                    json=payload,
-                    timeout=60
-                )
-
+                # Fetch generated image
+                response = requests.get(image_url, timeout=60)
+                
                 if response.status_code == 200:
                     generated_img = Image.open(io.BytesIO(response.content))
                     
@@ -137,7 +119,7 @@ if prompt := st.chat_input("Describe the scene or image you want to generate..."
                         "full_prompt": full_prompt
                     })
                 else:
-                    err_msg = f"API Error ({response.status_code}): {response.text}"
+                    err_msg = f"Generation Error ({response.status_code})"
                     st.error(err_msg)
                     st.session_state.chat_history.append({"role": "assistant", "type": "text", "content": err_msg})
 
@@ -146,3 +128,4 @@ if prompt := st.chat_input("Describe the scene or image you want to generate..."
                 err = f"Execution Error: {err_msg}"
                 st.error(err)
                 st.session_state.chat_history.append({"role": "assistant", "type": "text", "content": err})
+    
