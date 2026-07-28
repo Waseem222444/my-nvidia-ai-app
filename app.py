@@ -92,20 +92,17 @@ if prompt := st.chat_input("Describe the scene or image you want to generate..."
         with st.spinner("✨ Generating scene with AI..."):
             try:
                 full_prompt = f"{prompt}, {style_preset} style, highly detailed, master piece"
-                
-                # Official Hugging Face Client
                 client = InferenceClient(api_key=hf_token.strip())
                 
-                # Check if user provided a reference image
                 if ref_image:
-                    # Image-to-Image Generation using reference image
+                    # SD 2.1 handles serverless image-to-image conversion reliably
                     img = client.image_to_image(
                         image=ref_image,
                         prompt=full_prompt,
-                        model="black-forest-labs/FLUX.1-dev"
+                        model="stabilityai/stable-diffusion-2-1"
                     )
                 else:
-                    # Text-to-Image Generation
+                    # FLUX.1-dev for standard text-to-image
                     img = client.text_to_image(
                         prompt=full_prompt,
                         model="black-forest-labs/FLUX.1-dev"
